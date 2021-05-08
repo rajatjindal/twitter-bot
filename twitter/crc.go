@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 
@@ -40,14 +39,8 @@ func (b *Bot) triggerCRC(webhookID string) error {
 	defer resp.Body.Close()
 
 	if b.debug {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		bodyString := string(bodyBytes)
-
-		logrus.Debug("response is: ", bodyString)
+		d, _ := httputil.DumpResponse(resp, true)
+		logrus.Debug("response is: ", string(d))
 	}
 	return nil
 }
