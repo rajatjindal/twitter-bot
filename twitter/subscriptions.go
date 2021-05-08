@@ -3,6 +3,7 @@ package twitter
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
 )
 
 func getSubsribeEndpoint(environment string) string {
@@ -25,11 +26,11 @@ func (b *Bot) subscribeWebhook() error {
 	defer resp.Body.Close()
 
 	//If response code is 204 it was successful
-	if resp.StatusCode == 204 {
+	if resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
 
-	return fmt.Errorf("Could not subscribe the webhook. Response below: %s", string(body))
+	return fmt.Errorf("could not subscribe the webhook. response below: %s", body)
 }
 
 //isSubscribed check if subscription was already done

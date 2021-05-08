@@ -2,22 +2,23 @@ package twitter
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/yaml"
 )
 
 const twitterAPIBase = "https://api.twitter.com/1.1"
 
 //Tokens is for twitter tokens
 type Tokens struct {
-	ConsumerKey   string `yaml:"consumerKey"`
-	ConsumerToken string `yaml:"consumerToken"`
-	Token         string `yaml:"token"`
-	TokenSecret   string `yaml:"tokenSecret"`
+	ConsumerKey   string `json:"consumerKey"`
+	ConsumerToken string `json:"consumerToken"`
+	Token         string `json:"token"`
+	TokenSecret   string `json:"tokenSecret"`
 }
 
 //Bot is a twitter bot
@@ -30,11 +31,11 @@ type Bot struct {
 
 //BotConfig is config for initializing new twitter bot
 type BotConfig struct {
-	Tokens               Tokens `yaml:"tokens"`
-	Environment          string `yaml:"environment"`
-	WebhookHost          string `yaml:"webhook-host"`
-	WebhookPath          string `yaml:"webhook-path"`
-	OverrideRegistration bool   `yaml:"override-registration"`
+	Tokens               Tokens `json:"tokens"`
+	Environment          string `json:"environment"`
+	WebhookHost          string `json:"webhook-host"`
+	WebhookPath          string `json:"webhook-path"`
+	OverrideRegistration bool   `json:"override-registration"`
 }
 
 //NotFoundError not found error
@@ -46,19 +47,37 @@ func (n NotFoundError) Error() string {
 	return n.Msg
 }
 
+func NewBotFromFile(credsFile string) (*Bot, error) {
+	data, err := ioutil.ReadFile(credsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &BotConfig{}
+	err = yaml.Unmarshal(data, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBot(config)
+}
+
 //NewBot returns new bot
 func NewBot(config *BotConfig) (*Bot, error) {
 	oauthConfig := oauth1.NewConfig(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
 	oauthToken := oauth1.NewToken(config.Tokens.Token, config.Tokens.TokenSecret)
 	oauthClient := oauthConfig.Client(oauth1.NoContext, oauthToken)
 
-	logrus.SetLevel(logrus.DebugLevel)
 	return &Bot{
 		oauthClient: oauthClient,
 		client:      twitter.NewClient(oauthClient),
 		config:      config,
 		debug:       true,
 	}, nil
+}
+
+func (b *Bot) WebhookPath() string {
+	return b.config.WebhookPath
 }
 
 func (b *Bot) currentWebhook() (*WebhookConfig, error) {
@@ -93,7 +112,7 @@ func (b *Bot) DoRegistrationAndSubscribeBusiness() error {
 			return err
 		}
 	case webhook == nil:
-		webhook, err = b.registerWebhook()
+		_, err = b.registerWebhook()
 		if err != nil {
 			return err
 		}
