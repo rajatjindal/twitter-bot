@@ -40,7 +40,8 @@ func (b *Bot) isSubscribed() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
+	defer resp.Body.Close()
+	
 	//If response code is 204 it was successful
 	if resp.StatusCode == 204 {
 		return true, nil
