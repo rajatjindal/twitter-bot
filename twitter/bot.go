@@ -19,6 +19,8 @@ type Tokens struct {
 	ConsumerToken string `json:"consumerToken"`
 	Token         string `json:"token"`
 	TokenSecret   string `json:"tokenSecret"`
+	ClientId      string `json:"clientId"`
+	ClientSecret  string `json:"clientSecret"`
 }
 
 //Bot is a twitter bot
