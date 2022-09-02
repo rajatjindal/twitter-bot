@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
@@ -72,11 +73,25 @@ func NewBot(config *BotConfig) (*Bot, error) {
 	oauthToken := oauth1.NewToken(config.Tokens.Token, config.Tokens.TokenSecret)
 	oauthClient := oauthConfig.Client(oauth1.NoContext, oauthToken)
 
+	oauth2Token, err := oauth2Token(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Bot{
 		oauthClient: oauthClient,
 		client:      twitter.NewClient(oauthClient),
 		config:      config,
 		debug:       true,
+		clientv2: &twitterv2.Client{
+			Authorizer: authorize{
+				Token: oauth2Token,
+			},
+			Client: &http.Client{
+				Timeout: 5 * time.Second,
+			},
+			Host: "https://api.twitter.com",
+		},
 	}, nil
 }
 

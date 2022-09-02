@@ -11,7 +11,15 @@ import (
 	twitterv2 "github.com/g8rswimmer/go-twitter/v2"
 )
 
-func (b *Bot) Oauth2Token() (string, error) {
+type authorize struct {
+	Token string
+}
+
+func (a authorize) Add(req *http.Request) {
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", a.Token))
+}
+
+func oauth2Token(consumerKey, consumerSecret string) (string, error) {
 	reader := strings.NewReader("grant_type=client_credentials")
 	req, err := http.NewRequest(http.MethodPost, "https://api.twitter.com/oauth2/token", reader)
 	if err != nil {
@@ -19,7 +27,7 @@ func (b *Bot) Oauth2Token() (string, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(b.config.Tokens.ConsumerKey, b.config.Tokens.ConsumerToken)
+	req.SetBasicAuth(consumerKey, consumerSecret)
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
