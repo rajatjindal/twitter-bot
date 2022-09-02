@@ -3,7 +3,7 @@ package twitter
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,7 +16,7 @@ func listWebhooksEndpoint(environment string) string {
 	return fmt.Sprintf("%s/%s", twitterAPIBase, fmt.Sprintf(listWebhooksPath, environment))
 }
 
-//WebhookConfig from twitter
+// WebhookConfig from twitter
 type WebhookConfig struct {
 	ID               string `json:"id"`
 	URL              string `json:"url"`
@@ -32,7 +32,7 @@ func registerWebhookEndpoint(environment, webhookHost, webhookPath string) strin
 	return fmt.Sprintf("%s%s?url=%s", twitterAPIBase, registerWebhookPath, url.QueryEscape(webhookURL))
 }
 
-//registerWebhook registers our webhook
+// registerWebhook registers our webhook
 func (b *Bot) registerWebhook() (*WebhookConfig, error) {
 	req, err := http.NewRequest("POST", registerWebhookEndpoint(b.config.Environment, b.config.WebhookHost, b.config.WebhookPath), nil)
 	if err != nil {
@@ -54,7 +54,7 @@ func (b *Bot) registerWebhook() (*WebhookConfig, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (b *Bot) registerWebhook() (*WebhookConfig, error) {
 	return webhookConfig, nil
 }
 
-//getAllWebhooks lists our webhook
+// getAllWebhooks lists our webhook
 func (b *Bot) getAllWebhooks() ([]*WebhookConfig, error) {
 	req, err := http.NewRequest("GET", listWebhooksEndpoint(b.config.Environment), nil)
 	if err != nil {
@@ -95,7 +95,7 @@ func (b *Bot) getAllWebhooks() ([]*WebhookConfig, error) {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func deleteWebhookEndpoint(webhookID, environment string) string {
 	return fmt.Sprintf("%s/account_activity/all/%s/webhooks/%s.json", twitterAPIBase, environment, webhookID)
 }
 
-//deleteWebhook deletes the webhook
+// deleteWebhook deletes the webhook
 func (b *Bot) deleteWebhook(webhookID string) error {
 	req, err := http.NewRequest("DELETE", deleteWebhookEndpoint(webhookID, b.config.Environment), nil)
 	if err != nil {
@@ -141,7 +141,7 @@ func (b *Bot) deleteWebhook(webhookID string) error {
 
 	//TODO(rajatjindal): add status code check
 	if b.debug {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

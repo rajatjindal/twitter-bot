@@ -2,18 +2,19 @@ package twitter
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
+	twitterv2 "github.com/g8rswimmer/go-twitter/v2"
 	"sigs.k8s.io/yaml"
 )
 
 const twitterAPIBase = "https://api.twitter.com/1.1"
 
-//Tokens is for twitter tokens
+// Tokens is for twitter tokens
 type Tokens struct {
 	ConsumerKey   string `json:"consumerKey"`
 	ConsumerToken string `json:"consumerToken"`
@@ -23,15 +24,16 @@ type Tokens struct {
 	ClientSecret  string `json:"clientSecret"`
 }
 
-//Bot is a twitter bot
+// Bot is a twitter bot
 type Bot struct {
 	config      *BotConfig
 	client      *twitter.Client
+	clientv2    *twitterv2.Client
 	debug       bool
 	oauthClient *http.Client
 }
 
-//BotConfig is config for initializing new twitter bot
+// BotConfig is config for initializing new twitter bot
 type BotConfig struct {
 	Tokens               Tokens `json:"tokens"`
 	Environment          string `json:"environment"`
@@ -40,7 +42,7 @@ type BotConfig struct {
 	OverrideRegistration bool   `json:"override-registration"`
 }
 
-//NotFoundError not found error
+// NotFoundError not found error
 type NotFoundError struct {
 	Msg string
 }
@@ -50,7 +52,7 @@ func (n NotFoundError) Error() string {
 }
 
 func NewBotFromFile(credsFile string) (*Bot, error) {
-	data, err := ioutil.ReadFile(credsFile)
+	data, err := os.ReadFile(credsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +66,7 @@ func NewBotFromFile(credsFile string) (*Bot, error) {
 	return NewBot(config)
 }
 
-//NewBot returns new bot
+// NewBot returns new bot
 func NewBot(config *BotConfig) (*Bot, error) {
 	oauthConfig := oauth1.NewConfig(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
 	oauthToken := oauth1.NewToken(config.Tokens.Token, config.Tokens.TokenSecret)
@@ -97,7 +99,7 @@ func (b *Bot) currentWebhook() (*WebhookConfig, error) {
 	return nil, NotFoundError{Msg: fmt.Sprintf("no webhook found for host %s", b.config.WebhookHost)}
 }
 
-//DoRegistrationAndSubscribeBusiness registers the webhook for twitter bot
+// DoRegistrationAndSubscribeBusiness registers the webhook for twitter bot
 func (b *Bot) DoRegistrationAndSubscribeBusiness() error {
 	webhook, err := b.currentWebhook()
 	if err != nil {
