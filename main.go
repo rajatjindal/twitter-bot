@@ -9,70 +9,87 @@ import (
 	"syscall"
 	"time"
 
-	twitter "github.com/rajatjindal/twitter-bot/twitter"
-	"github.com/sirupsen/logrus"
-)
-
-const (
-	webhookHost     = "https://your-webhook-host"
-	webhookPath     = "/webhook/twitter"
-	environmentName = "prod" //has to be same as provided when getting tokens from twitter developers console
+	"github.com/gorilla/mux"
+	twitter "github.com/rajatjindal/twitter-bot/v2/twitter"
 )
 
 type webhookHandler struct{}
 
 func (wh webhookHandler) handler(w http.ResponseWriter, r *http.Request) {
 	x, _ := httputil.DumpRequest(r, true)
-	logrus.Info(string(x))
+	fmt.Println("webhook received is ", string(x))
 }
 
 func main() {
-	bot, err := twitter.NewBot(
-		&twitter.BotConfig{
-			Tokens: twitter.Tokens{
-				ConsumerKey:   "<consumer-key>",
-				ConsumerToken: "<consumer-token>",
-				Token:         "<token>",
-				TokenSecret:   "<token-secret>",
-			},
-			Environment:          environmentName,
-			WebhookHost:          webhookHost,
-			WebhookPath:          webhookPath,
-			OverrideRegistration: true,
+	client := &http.Client{}
+	botConf := &twitter.BotConfig{
+		Tokens: twitter.Tokens{
+			ConsumerKey:   "consumer-key",
+			ConsumerToken: "consumer-token",
+			Token:         "token",
+			TokenSecret:   "token-secret",
+			ClientId:      "oauth-client-id",
+			ClientSecret:  "oauth-client-secret",
 		},
-	)
-	if err != nil {
-		logrus.Fatal(err)
+		WebhookConfig: twitter.WebhookConfig{
+			Environment:      "development",
+			URL:              "https://your-webhook-host",
+			Path:             "/webhook/twitter",
+			OverWriteOnLimit: true,
+			MaxAllowed:       1,
+		},
 	}
 
-	wh := webhookHandler{}
-	http.HandleFunc(webhookPath, func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			bot.HandleCRCResponse(w, r)
-		case http.MethodPost:
-			wh.handler(w, r)
-		}
+	bot, err := twitter.NewBotWithClient(client, botConf)
+	if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		os.Exit(1)
+	}
+
+	router := mux.NewRouter().StrictSlash(true)
+	router.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	})
 
+	// this helps with CRC validation that Twitter do periodically
+	router.Methods(http.MethodGet).Path(bot.WebhookPath()).HandlerFunc(bot.HandleCRCResponse)
+
+	// this is your webhook handler
+	wh := &webhookHandler{}
+	router.Methods(http.MethodPost).Path(bot.WebhookPath()).HandlerFunc(wh.handler)
+
 	go func() {
-		fmt.Println(http.ListenAndServe(":8080", nil))
+		server := &http.Server{
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  10 * time.Second,
+			Addr:         ":8080",
+			Handler:      router,
+		}
+
+		fmt.Printf("Starting HTTP server on %s\n", server.Addr)
+		err := server.ListenAndServe()
+		if err != nil {
+			fmt.Printf("ERROR: server.ListendAndServe() failed with %v\n", err)
+			os.Exit(1)
+		}
 	}()
 
 	// give time for http server to start and be ready
 	// server needs to be up before we do registration and subscription
 	// so that we can respond to CRC request
-	time.Sleep(3)
+	time.Sleep(3 * time.Second)
 
-	err = bot.DoRegistrationAndSubscribeBusiness()
+	err = bot.EnsureWebhookIsActive()
 	if err != nil {
-		logrus.Fatal(err)
+		fmt.Printf("ERROR: %v\n", err)
+		os.Exit(1)
 	}
 
-	logrus.Info("started listening the events successfully")
+	fmt.Println("started listening the events successfully")
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	<-signals
-	logrus.Info("Received SIGTERM. Terminating...")
+	fmt.Println("Received SIGTERM. Terminating...")
 }
