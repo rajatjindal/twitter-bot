@@ -13,8 +13,8 @@ func getSubsribeEndpoint(environment string) string {
 
 // SubscribeWebhook subscribes
 func (b *Bot) subscribeWebhook() error {
-	path := getSubsribeEndpoint(b.config.Environment)
-	resp, err := b.oauthClient.PostForm(path, nil)
+	path := getSubsribeEndpoint(b.config.WebhookConfig.Environment)
+	resp, err := b.asOwnerOfApp.Client.PostForm(path, nil)
 	if err != nil {
 		return err
 	}
@@ -35,15 +35,15 @@ func (b *Bot) subscribeWebhook() error {
 
 // isSubscribed check if subscription was already done
 func (b *Bot) isSubscribed() (bool, error) {
-	path := getSubsribeEndpoint(b.config.Environment)
-	resp, err := b.oauthClient.Get(path)
+	path := getSubsribeEndpoint(b.config.WebhookConfig.Environment)
+	resp, err := b.asOwnerOfApp.Client.Get(path)
 	if err != nil {
 		return false, err
 	}
 	defer resp.Body.Close()
 
 	//If response code is 204 it was successful
-	if resp.StatusCode == 204 {
+	if resp.StatusCode == http.StatusNoContent {
 		return true, nil
 	}
 

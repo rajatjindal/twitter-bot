@@ -1,21 +1,31 @@
 package twitter
 
 import (
-	"fmt"
+	"context"
 	"net/http"
-	"os"
-	"strings"
-	"time"
 
-	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	twitterv2 "github.com/g8rswimmer/go-twitter/v2"
-	"sigs.k8s.io/yaml"
+	"github.com/g8rswimmer/go-twitter/v2"
 )
 
-const twitterAPIBase = "https://api.twitter.com/1.1"
+const (
+	twitterAPIHost = "https://api.twitter.com"
+	twitterAPIBase = twitterAPIHost + "/1.1"
+)
 
-// Tokens is for twitter tokens
+type Bot struct {
+	config *BotConfig
+	client *http.Client
+
+	asOwnerOfApp *twitter.Client
+	asAppItself  *twitter.Client
+}
+
+type BotConfig struct {
+	Tokens        Tokens        `json:"tokens"`
+	WebhookConfig WebhookConfig `json:"webhookConfig"`
+}
+
 type Tokens struct {
 	ConsumerKey   string `json:"consumerKey"`
 	ConsumerToken string `json:"consumerToken"`
@@ -25,126 +35,60 @@ type Tokens struct {
 	ClientSecret  string `json:"clientSecret"`
 }
 
-// Bot is a twitter bot
-type Bot struct {
-	config      *BotConfig
-	client      *twitter.Client
-	clientv2    *twitterv2.Client
-	debug       bool
-	oauthClient *http.Client
+type WebhookConfig struct {
+	Path             string `json:"path"`
+	URL              string `json:"url"`
+	Environment      string `json:"environment"`
+	MaxAllowed       int    `json:"maxAllowed"`
+	OverWriteOnLimit bool   `json:"overwriteOnLimit"`
 }
 
-// BotConfig is config for initializing new twitter bot
-type BotConfig struct {
-	Tokens               Tokens `json:"tokens"`
-	Environment          string `json:"environment"`
-	WebhookHost          string `json:"webhook-host"`
-	WebhookPath          string `json:"webhook-path"`
-	OverrideRegistration bool   `json:"override-registration"`
-}
-
-// NotFoundError not found error
-type NotFoundError struct {
-	Msg string
-}
-
-func (n NotFoundError) Error() string {
-	return n.Msg
-}
-
-func NewBotFromFile(credsFile string) (*Bot, error) {
-	data, err := os.ReadFile(credsFile)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &BotConfig{}
-	err = yaml.Unmarshal(data, config)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewBot(config)
-}
-
-// NewBot returns new bot
-func NewBot(config *BotConfig) (*Bot, error) {
+func NewBotWithClient(client *http.Client, config *BotConfig) (*Bot, error) {
 	oauthConfig := oauth1.NewConfig(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
 	oauthToken := oauth1.NewToken(config.Tokens.Token, config.Tokens.TokenSecret)
-	oauthClient := oauthConfig.Client(oauth1.NoContext, oauthToken)
 
-	oauth2Token, err := oauth2Token(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
+	ctx := oauth1.NoContext
+	if client != nil {
+		ctx = context.WithValue(ctx, oauth1.HTTPClient, client)
+	}
+
+	oauthClient := oauthConfig.Client(ctx, oauthToken)
+
+	// setup bot
+	bot := &Bot{
+		config: config,
+		client: client,
+	}
+
+	// add client to use when making api call as owner of app
+	bot.asOwnerOfApp = &twitter.Client{
+		Host:       twitterAPIHost,
+		Client:     oauthClient,
+		Authorizer: &noop{},
+	}
+
+	oauth2Token, err := bot.oauth2Token(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Bot{
-		oauthClient: oauthClient,
-		client:      twitter.NewClient(oauthClient),
-		config:      config,
-		debug:       true,
-		clientv2: &twitterv2.Client{
-			Authorizer: authorize{
-				Token: oauth2Token,
-			},
-			Client: &http.Client{
-				Timeout: 5 * time.Second,
-			},
-			Host: "https://api.twitter.com",
+	// add client to use when making api call as app itself
+	// https://developer.twitter.com/en/docs/authentication/oauth-2-0
+	bot.asAppItself = &twitter.Client{
+		Authorizer: appAuth{
+			Token: oauth2Token,
 		},
-	}, nil
+		Host:   twitterAPIHost,
+		Client: client,
+	}
+
+	return bot, nil
 }
 
-func (b *Bot) WebhookPath() string {
-	return b.config.WebhookPath
+func (b *Bot) AsAppItself() *twitter.Client {
+	return b.asAppItself
 }
 
-func (b *Bot) currentWebhook() (*WebhookConfig, error) {
-	webhookConfigs, err := b.getAllWebhooks()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, c := range webhookConfigs {
-		if strings.HasPrefix(c.URL, b.config.WebhookHost) {
-			return c, nil
-		}
-	}
-
-	return nil, NotFoundError{Msg: fmt.Sprintf("no webhook found for host %s", b.config.WebhookHost)}
-}
-
-// DoRegistrationAndSubscribeBusiness registers the webhook for twitter bot
-func (b *Bot) DoRegistrationAndSubscribeBusiness() error {
-	webhook, err := b.currentWebhook()
-	if err != nil {
-		_, ok := err.(NotFoundError)
-		if !ok {
-			return err
-		}
-	}
-
-	switch {
-	case webhook != nil:
-		err = b.triggerCRC(webhook.ID)
-		if err != nil {
-			return err
-		}
-	case webhook == nil:
-		_, err = b.registerWebhook()
-		if err != nil {
-			return err
-		}
-	}
-
-	subscribed, err := b.isSubscribed()
-	if err != nil {
-		return err
-	}
-
-	if subscribed {
-		return nil
-	}
-
-	return b.subscribeWebhook()
+func (b *Bot) AsOwnerOfApp() *twitter.Client {
+	return b.asOwnerOfApp
 }
