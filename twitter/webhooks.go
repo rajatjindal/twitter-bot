@@ -116,7 +116,7 @@ func (b *Bot) registerWebhook() (*Webhook, error) {
 		return nil, err
 	}
 
-	resp, err := b.client.Do(req)
+	resp, err := b.asOwnerOfApp.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (b *Bot) getAllWebhooks() ([]*Webhook, error) {
 		return nil, err
 	}
 
-	resp, err := b.client.Do(req)
+	resp, err := b.asOwnerOfApp.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (b *Bot) DeleteWebhook(webhookID string) error {
 		return err
 	}
 
-	resp, err := b.client.Do(req)
+	resp, err := b.asOwnerOfApp.Client.Do(req)
 	if err != nil {
 		return err
 	}

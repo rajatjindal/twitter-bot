@@ -4,9 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	twitterv2 "github.com/g8rswimmer/go-twitter/v2"
+	"github.com/g8rswimmer/go-twitter/v2"
 )
 
 const (
@@ -15,10 +14,11 @@ const (
 )
 
 type Bot struct {
-	config    *BotConfig
-	twitter   *twitter.Client
-	twitterv2 *twitterv2.Client
-	client    *http.Client
+	config *BotConfig
+	client *http.Client
+
+	asOwnerOfApp *twitter.Client
+	asAppItself  *twitter.Client
 }
 
 type BotConfig struct {
@@ -53,32 +53,42 @@ func NewBotWithClient(client *http.Client, config *BotConfig) (*Bot, error) {
 	}
 
 	oauthClient := oauthConfig.Client(ctx, oauthToken)
-	return &Bot{
-		twitter: twitter.NewClient(oauthClient),
-		config:  config,
-		client:  oauthClient,
-	}, nil
-}
 
-func (b *Bot) MustEnableV2Client() {
-	err := b.EnableV2Client()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (b *Bot) EnableV2Client() error {
-	oauth2Token, err := b.oauth2Token(b.config.Tokens.ConsumerKey, b.config.Tokens.ConsumerToken)
-	if err != nil {
-		return err
+	// setup bot
+	bot := &Bot{
+		config: config,
+		client: client,
 	}
 
-	b.twitterv2 = &twitterv2.Client{
-		Authorizer: authorize{
+	// add client to use when making api call as owner of app
+	bot.asOwnerOfApp = &twitter.Client{
+		Host:       twitterAPIHost,
+		Client:     oauthClient,
+		Authorizer: &noop{},
+	}
+
+	oauth2Token, err := bot.oauth2Token(config.Tokens.ConsumerKey, config.Tokens.ConsumerToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// add client to use when making api call as app itself
+	// https://developer.twitter.com/en/docs/authentication/oauth-2-0
+	bot.asAppItself = &twitter.Client{
+		Authorizer: appAuth{
 			Token: oauth2Token,
 		},
-		Host: twitterAPIHost,
+		Host:   twitterAPIHost,
+		Client: client,
 	}
 
-	return nil
+	return bot, nil
+}
+
+func (b *Bot) AsAppItself() *twitter.Client {
+	return b.asAppItself
+}
+
+func (b *Bot) AsOwnerOfApp() *twitter.Client {
+	return b.asOwnerOfApp
 }

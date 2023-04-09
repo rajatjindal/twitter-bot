@@ -8,11 +8,15 @@ import (
 	"strings"
 )
 
-type authorize struct {
+type noop struct{}
+
+func (a noop) Add(req *http.Request) {}
+
+type appAuth struct {
 	Token string
 }
 
-func (a authorize) Add(req *http.Request) {
+func (a appAuth) Add(req *http.Request) {
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", a.Token))
 }
 

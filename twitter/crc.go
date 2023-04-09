@@ -31,7 +31,7 @@ func (b *Bot) TriggerCRC(webhookID string) error {
 		return err
 	}
 
-	resp, err := b.client.Do(req)
+	resp, err := b.asOwnerOfApp.Client.Do(req)
 	if err != nil {
 		return err
 	}

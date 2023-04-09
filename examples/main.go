@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -9,15 +10,29 @@ import (
 	"syscall"
 	"time"
 
+	twitterv2 "github.com/g8rswimmer/go-twitter/v2"
 	"github.com/gorilla/mux"
 	twitter "github.com/rajatjindal/twitter-bot/v2/twitter"
 )
 
-type webhookHandler struct{}
+type webhookHandler struct {
+	bot *twitter.Bot
+}
 
 func (wh webhookHandler) handler(w http.ResponseWriter, r *http.Request) {
 	x, _ := httputil.DumpRequest(r, true)
 	fmt.Println("webhook received is ", string(x))
+
+	_, err := wh.bot.AsOwnerOfApp().CreateTweet(context.TODO(), twitterv2.CreateTweetRequest{
+		Text: "hello back @rajatjindal",
+	})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func main() {

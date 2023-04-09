@@ -14,7 +14,7 @@ func getSubsribeEndpoint(environment string) string {
 // SubscribeWebhook subscribes
 func (b *Bot) subscribeWebhook() error {
 	path := getSubsribeEndpoint(b.config.WebhookConfig.Environment)
-	resp, err := b.client.PostForm(path, nil)
+	resp, err := b.asOwnerOfApp.Client.PostForm(path, nil)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (b *Bot) subscribeWebhook() error {
 // isSubscribed check if subscription was already done
 func (b *Bot) isSubscribed() (bool, error) {
 	path := getSubsribeEndpoint(b.config.WebhookConfig.Environment)
-	resp, err := b.client.Get(path)
+	resp, err := b.asOwnerOfApp.Client.Get(path)
 	if err != nil {
 		return false, err
 	}
